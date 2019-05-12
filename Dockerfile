@@ -1,5 +1,6 @@
 # Use latest jboss/base-jdk:11 image as the base
-FROM jboss/base-jdk:11
+#FROM jboss/base-jdk:11
+FROM arm32v6/openjdk:8-alpine
 
 # Set the WILDFLY_VERSION env variable
 ENV WILDFLY_VERSION 16.0.0.Final
@@ -8,13 +9,25 @@ ENV JBOSS_HOME /opt/jboss/wildfly
 
 USER root
 
+# Create a user and group used to launch processes
+# The user ID 1000 is the default for the first "regular" user on Fedora/RHEL,
+# so there is a high chance that this ID will be equal to the current user
+# making it easier to use volumes (no permission issues)
+RUN addgroup -S jboss -g 1000 \
+    && adduser -u 1000 -S -g jboss -h /opt/jboss -s /sbin/nologin jboss \
+    && chmod 755 /opt/jboss
+
+# Set the working directory to jboss' user home directory
+WORKDIR /opt/jboss
+
 # Add the WildFly distribution to /opt, and make wildfly the owner of the extracted tar content
 # Make sure the distribution is available from a well-known place
 RUN cd $HOME \
-    && curl -O https://download.jboss.org/wildfly/$WILDFLY_VERSION/wildfly-$WILDFLY_VERSION.tar.gz \
+    && apk add --no-cache curl \
+    && curl --progress-bar -O https://download.jboss.org/wildfly/$WILDFLY_VERSION/wildfly-$WILDFLY_VERSION.tar.gz \
     && sha1sum wildfly-$WILDFLY_VERSION.tar.gz | grep $WILDFLY_SHA1 \
     && tar xf wildfly-$WILDFLY_VERSION.tar.gz \
-    && mv $HOME/wildfly-$WILDFLY_VERSION $JBOSS_HOME \
+    && mv wildfly-$WILDFLY_VERSION $JBOSS_HOME \
     && rm wildfly-$WILDFLY_VERSION.tar.gz \
     && chown -R jboss:0 ${JBOSS_HOME} \
     && chmod -R g+rw ${JBOSS_HOME}
